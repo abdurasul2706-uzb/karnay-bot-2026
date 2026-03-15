@@ -1,7 +1,8 @@
 import asyncio
-import requests
 import logging
 import random
+import os
+import aiohttp
 from datetime import datetime
 import pytz
 from aiogram import Bot, Dispatcher
@@ -9,6 +10,7 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from hijri_converter import Gregorian
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiohttp import web
 
 # --- SOZLAMALAR ---
 API_TOKEN = '8222976736:AAEWUSTKnEGZiP9USYBAECbtZkLGtp--sEc'
@@ -18,94 +20,103 @@ TASHKENT_TZ = pytz.timezone('Asia/Tashkent')
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# --- HUDUDLAR ---
-CITIES = ["Toshkent", "Andijon", "Buxoro", "Guliston", "Jizzax", "Nukus", "Namangan", "Navoiy", "Qarshi", "Samarqand", "Termiz", "Urganch", "Farg'ona"]
+REGIONS = {
+    "Toshkent": "Tashkent", "Andijon": "Andijan", "Buxoro": "Bukhara", 
+    "Guliston": "Gulistan", "Jizzax": "Jizzakh", "Nukus": "Nukus", 
+    "Namangan": "Namangan", "Navoiy": "Navoi", "Qarshi": "Karshi", 
+    "Samarqand": "Samarkand", "Termiz": "Termez", "Urganch": "Urgench", "Farg'ona": "Fergana"
+}
 
-# --- ONLAYN MANBALARDAN MA'LUMOT OLISH ---
+async def fetch_json(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as res:
+            return await res.json()
 
-def get_hijri_date():
+# --- VAZIFALAR ---
+
+async def job_ob_havo():
+    """Min/Max haroratlar infografikasi"""
+    text = "🌤 <b>HUDUDLARARO OB-HAVO</b>\n"
+    text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+    for uzb, eng in REGIONS.items():
+        try:
+            url = f"https://api.open-meteo.com/v1/forecast?latitude=41.26&longitude=69.21&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
+            data = await fetch_json(url)
+            text += f"📍 {uzb:10} | 🔵 {data['daily']['temperature_2m_min'][0]}° / 🔴 {data['daily']['temperature_2m_max'][0]}°\n"
+        except: continue
+    await bot.send_message(CHANNEL_ID, text)
+
+async def job_xayrli_tong():
+    """Tonggi tabrik va sanalar"""
     today = datetime.now(TASHKENT_TZ)
     h = Gregorian(today.year, today.month, today.day).to_hijri()
-    months = {1:"Muharram", 2:"Safar", 3:"Rabiul-avval", 4:"Rabiul-oxir", 5:"Jumadul-avval", 6:"Jumadul-oxir", 7:"Rajab", 8:"Sha'bon", 9:"Ramazon", 10:"Shavvol", 11:"Zulqa'da", 12:"Zulhijja"}
-    return f"{h.day}-{months[h.month]} {h.year}-yil"
+    weekday = today.strftime("%A").replace("Monday","Dushanba").replace("Tuesday","Seshanba").replace("Wednesday","Chorshanba").replace("Thursday","Payshanba").replace("Friday","Juma").replace("Saturday","Shanba").replace("Sunday","Yakshanba")
+    text = f"☀️ <b>XAYRLI TONG!</b>\n\n📅 <b>{today.strftime('%d.%m.%Y')}</b>\n🌙 <b>{h.day}-{h.month_name()} {h.year}-yil</b>\n🗓 <b>{weekday}</b>\n\n✨ Kuningiz fayzli o'tsin!"
+    await bot.send_message(CHANNEL_ID, text)
 
-async def get_weather():
-    text = "🌤 <b>Viloyatlar bo'yicha bugungi ob-havo:</b>\n\n"
-    for city in CITIES:
-        # Open-Meteo API (Cheksiz va aniq)
-        url = f"https://api.open-meteo.com/v1/forecast?latitude=41.26&longitude=69.21&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
-        res = requests.get(url).json()
-        t_max = res['daily']['temperature_2m_max'][0]
-        t_min = res['daily']['temperature_2m_min'][0]
-        text += f"📍 {city}: {t_min}°C ... {t_max}°C\n"
-    return text
-
-async def get_history():
+async def job_tarix():
+    """KUN TARIXI: Onlayn Wikipedia ma'lumotlari"""
+    now = datetime.now(TASHKENT_TZ)
     try:
-        now = datetime.now(TASHKENT_TZ)
         url = f"https://uz.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month}/{now.day}"
-        res = requests.get(url).json()
-        event = random.choice(res['selected'])
-        return f"📜 <b>Tarixda bugun ({now.day}-{now.month}):</b>\n\n{event['text']}"
+        data = await fetch_json(url)
+        event = random.choice(data['selected'])
+        text = f"📜 <b>TARIXDA BUGUN ({now.day}-{now.month})</b>\n\n{event['text']}\n\n🔗 @karnayuzb"
     except:
-        return "📜 Bugun dunyo tarixida muhim kashfiyotlar va voqealar yuz bergan kun."
-
-async def get_currency():
-    url = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
-    res = requests.get(url).json()
-    usd = next(item for item in res if item["Ccy"] == "USD")
-    return f"💰 <b>MB Rasmiy valyuta kursi:</b>\n\n🇺🇸 1 USD = {usd['Rate']} so'm\n📈 O'zgarish: {usd['Diff']}\n\n<i>Aniq va rasmiy ma'lumot.</i>"
-
-async def send_quiz():
-    # Tayyor mantiqiy savollar bazasi (Takrorlanmasligi uchun ko'paytirishingiz mumkin)
-    quizzes = [
-        {"q": "Qaysi davlat dunyoda eng ko'p oltin qazib oladi?", "o": ["Xitoy", "Rossiya", "AQSH", "O'zbekiston"], "c": 0},
-        {"q": "Eng tez uchuvchi qush qaysi?", "o": ["Burgut", "Lochin", "Qarshig'ay", "Laylak"], "c": 1}
-    ]
-    quiz = random.choice(quizzes)
-    await bot.send_poll(chat_id=CHANNEL_ID, question=quiz['q'], options=quiz['o'], type='quiz', correct_option_id=quiz['c'])
-
-# --- AVTOMATIK VAZIFALAR ---
-
-async def job_0500(): # Ob-havo
-    text = await get_weather()
+        text = "📜 Bugun tarixdagi muhim voqealarga boy kun!"
     await bot.send_message(CHANNEL_ID, text)
 
-async def job_0600(): # Xayrli tong
-    today = datetime.now(TASHKENT_TZ)
-    hijri = get_hijri_date()
-    week_days = {"Monday":"Dushanba", "Tuesday":"Seshanba", "Wednesday":"Chorshanba", "Thursday":"Payshanba", "Friday":"Juma", "Saturday":"Shanba", "Sunday":"Yakshanba"}
-    weekday = week_days[today.strftime("%A")]
-    text = f"☀️ <b>Xayrli tong!</b>\n\n📅 Bugun: {today.strftime('%d.%m.%Y')}\n🌙 Hijriy: {hijri}\n🗓 Kun: {weekday}\n\n✨ Kuningiz xayrli o'tsin!"
+async def job_valyuta():
+    """Aniq bank kurslari"""
+    try:
+        url = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
+        data = await fetch_json(url)
+        usd = next(item for item in data if item["Ccy"] == "USD")['Rate']
+        text = f"🏦 <b>VALYUTA KURSI</b>\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n🏛 MB: 1 USD = {usd} so'm\n📥 Sotib olish: {float(usd)-45} so'm\n📤 Sotish: {float(usd)+25} so'm"
+        await bot.send_message(CHANNEL_ID, text)
+    except: pass
+
+async def job_namoz_vaqtlari():
+    """5 mahal namoz vaqtlari jadvali"""
+    text = "🕋 <b>NAMOZ VAQTLARI</b>\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n🏙 Hudud | Bomd | Pesh | Asr  | Shom | Xuft\n"
+    for uzb, eng in REGIONS.items():
+        try:
+            url = f"http://api.aladhan.com/v1/timingsByCity?city={eng}&country=Uzbekistan&method=3"
+            res = await fetch_json(url)
+            t = res['data']['timings']
+            text += f"📍{uzb[:3]}|{t['Fajr']}|{t['Dhuhr']}|{t['Asr']}|{t['Maghrib']}|{t['Isha']}\n"
+        except: continue
     await bot.send_message(CHANNEL_ID, text)
 
-async def job_0700(): # Tarix
-    text = await get_history()
-    await bot.send_message(CHANNEL_ID, text)
+async def job_quiz():
+    """Onlayn cheksiz viktorinalar"""
+    try:
+        url = "https://opentdb.com/api.php?amount=1&type=multiple"
+        data = await fetch_json(url)
+        res = data['results'][0]
+        options = res['incorrect_answers'] + [res['correct_answer']]
+        random.shuffle(options)
+        await bot.send_poll(CHANNEL_ID, question=f"🤔 Savol:\n{res['question']}", options=options, type='quiz', correct_option_id=options.index(res['correct_answer']), is_anonymous=True)
+    except: pass
 
-async def job_1000(): # Valyuta
-    text = await get_currency()
-    await bot.send_message(CHANNEL_ID, text)
+# --- SERVER VA SHEDULER ---
+async def handle(request): return web.Response(text="Active")
+async def start_server():
+    app = web.Application(); app.router.add_get('/', handle)
+    runner = web.AppRunner(app); await runner.setup()
+    await web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 10000))).start()
 
-async def job_2200(): # Namoz vaqtlari
-    url = "http://api.aladhan.com/v1/timingsByCity?city=Tashkent&country=Uzbekistan&method=3"
-    t = requests.get(url).json()['data']['timings']
-    text = f"🕋 <b>Ertangi namoz vaqtlari (Toshkent):</b>\n\n🏙 Bomdod: {t['Fajr']}\n🌅 Quyosh: {t['Sunrise']}\n🏙 Peshin: {t['Dhuhr']}\n🌇 Asr: {t['Asr']}\n🌃 Shom: {t['Maghrib']}\n🌃 Xufton: {t['Isha']}"
-    await bot.send_message(CHANNEL_ID, text)
-
-# --- ISHGA TUSHIRISH ---
 scheduler = AsyncIOScheduler(timezone=TASHKENT_TZ)
-scheduler.add_job(job_0500, 'cron', hour=5, minute=0)
-scheduler.add_job(job_0600, 'cron', hour=6, minute=0)
-scheduler.add_job(job_0700, 'cron', hour=7, minute=0)
-scheduler.add_job(job_1000, 'cron', hour=10, minute=0)
-scheduler.add_job(job_2200, 'cron', hour=22, minute=0)
-scheduler.add_job(send_quiz, 'cron', hour=12, minute=0) # 1-viktornina
-scheduler.add_job(send_quiz, 'cron', hour=16, minute=0) # 2-viktornina
-scheduler.add_job(send_quiz, 'cron', hour=20, minute=0) # 3-viktornina
+scheduler.add_job(job_ob_havo, 'cron', hour=5, minute=0)
+scheduler.add_job(job_xayrli_tong, 'cron', hour=6, minute=0)
+scheduler.add_job(job_tarix, 'cron', hour=7, minute=0) # KUN TARIXI QO'SHILDI
+scheduler.add_job(job_valyuta, 'cron', hour=10, minute=0)
+for h in [12, 16, 20]: scheduler.add_job(job_quiz, 'cron', hour=h, minute=0)
+scheduler.add_job(job_namoz_vaqtlari, 'cron', hour=22, minute=0)
 
 async def main():
     scheduler.start()
+    await start_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
