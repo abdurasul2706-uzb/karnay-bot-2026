@@ -1,0 +1,5 @@
+aiogram==3.10.0
+requests
+hijri-converter
+apscheduler
+pytz
