@@ -1,6 +1,6 @@
 aiogram
-requests
+aiohttp
 hijri-converter
 apscheduler
 pytz
-aiohttp
+beautifulsoup4
