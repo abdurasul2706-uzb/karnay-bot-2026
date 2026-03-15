@@ -3,3 +3,4 @@ requests
 hijri-converter
 apscheduler
 pytz
+aiohttp
