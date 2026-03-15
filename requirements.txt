@@ -4,3 +4,4 @@ hijri-converter
 apscheduler
 pytz
 beautifulsoup4
+lxml
