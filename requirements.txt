@@ -1,7 +1,6 @@
 aiogram
-aiohttp
-hijri-converter
 apscheduler
+aiohttp
+googletrans==4.0.0-rc1
+hijri-converter
 pytz
-beautifulsoup4
-lxml
