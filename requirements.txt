@@ -2,5 +2,5 @@ aiogram
 apscheduler
 aiohttp
 googletrans==4.0.0-rc1
-hijri-converter
+hijridate==2.3.0
 pytz
