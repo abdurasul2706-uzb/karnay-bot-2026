@@ -8,8 +8,7 @@ from aiogram.enums import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import aiohttp
 from googletrans import Translator
-from hijridate==2.3.0
-pytz import Gregorian
+from hijridate pytz import Gregorian
 
 # --- SOZLAMALAR ---
 API_TOKEN = '8222976736:AAERrJbYXYiIhFpfwHttD9R5mAaql4iEgzs' 
