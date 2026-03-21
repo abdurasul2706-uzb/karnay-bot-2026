@@ -28,7 +28,7 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --- ASOSIY SOZLAMALAR ---
-API_TOKEN = '8222976736:AAERrJbYXYiIhFpfwHttD9R5mAaql4iEgzs' 
+API_TOKEN = '8222976736:AAHWPyTC2Mtn8QJIyYTpAcZvP3eH6LGzMpI' 
 CHANNEL_ID = '@Karnayuzb'
 TASHKENT_TZ = pytz.timezone('Asia/Tashkent')
 
