@@ -11,7 +11,7 @@ from googletrans import Translator
 from hijri_converter import Gregorian
 
 # --- SOZLAMALAR ---
-API_TOKEN = '8222976736:AAEWUSTKnEGZiP9USYBAECbtZkLGtp--sEc'
+API_TOKEN = '8222976736:AAERrJbYXYiIhFpfwHttD9R5mAaql4iEgzs' 
 CHANNEL_ID = '@Karnayuzb'  # Username to'g'riligini tekshiring
 TASHKENT_TZ = pytz.timezone('Asia/Tashkent')
 
